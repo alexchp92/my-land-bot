@@ -34,6 +34,8 @@ class LandPlot(Base):
     submitted_at: Mapped[date] = mapped_column(Date)
     authority: Mapped[str | None] = mapped_column(String(256))
     address: Mapped[str | None] = mapped_column(String(256))
+    area: Mapped[str | None] = mapped_column(String(64))
+    land_use: Mapped[str | None] = mapped_column(String(256))
     comment: Mapped[str | None] = mapped_column(Text)
     status: Mapped[PlotStatus] = mapped_column(default=PlotStatus.WAITING_NOTICE)
     tracking_enabled: Mapped[bool] = mapped_column(Boolean, default=True)

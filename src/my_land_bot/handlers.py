@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
-from my_land_bot.keyboards import menu, plot_actions
+from my_land_bot.keyboards import menu, plot_actions, plot_scenario
 from my_land_bot.models import Auction, LandPlot, Notice, PlotStatus, User
 
 
@@ -17,9 +17,11 @@ class AddPlot(StatesGroup):
     cadastral = State()
     region = State()
     municipality = State()
+    address = State()
+    area = State()
+    land_use = State()
     submitted = State()
     authority = State()
-    address = State()
     comment = State()
 
 
@@ -104,11 +106,25 @@ def build_router(factory: async_sessionmaker[AsyncSession]) -> Router:
         await callback.answer()
 
     @router.callback_query(F.data == "plot:add")
-    async def add_plot(callback: CallbackQuery, state: FSMContext) -> None:
-        await state.set_state(AddPlot.cadastral)
+    async def choose_plot_scenario(callback: CallbackQuery) -> None:
         await callback.message.answer(
-            "Введите кадастровый номер участка. Если его нет, отправьте «-» — точность отслеживания может быть ниже."
+            "Выберите сценарий. Основной путь — заявление на участок, "
+            "который ещё не имеет кадастрового номера.",
+            reply_markup=plot_scenario(),
         )
+        await callback.answer()
+
+    @router.callback_query(F.data == "plot:add:no_cad")
+    async def add_plot_without_cadastral(callback: CallbackQuery, state: FSMContext) -> None:
+        await state.update_data(cadastral_number=None)
+        await state.set_state(AddPlot.region)
+        await callback.message.answer("Укажите регион, где находится участок.")
+        await callback.answer()
+
+    @router.callback_query(F.data == "plot:add:with_cad")
+    async def add_plot_with_cadastral(callback: CallbackQuery, state: FSMContext) -> None:
+        await state.set_state(AddPlot.cadastral)
+        await callback.message.answer("Введите кадастровый номер участка.")
         await callback.answer()
 
     @router.message(AddPlot.cadastral)
@@ -128,6 +144,30 @@ def build_router(factory: async_sessionmaker[AsyncSession]) -> Router:
     @router.message(AddPlot.municipality)
     async def add_municipality(message: Message, state: FSMContext) -> None:
         await state.update_data(municipality=message.text.strip())
+        await state.set_state(AddPlot.address)
+        await message.answer(
+            "Укажите адрес или ориентир участка. Это особенно важно, если номера нет."
+        )
+
+    @router.message(AddPlot.address)
+    async def add_address(message: Message, state: FSMContext) -> None:
+        await state.update_data(address=message.text.strip())
+        await state.set_state(AddPlot.area)
+        await message.answer(
+            "Укажите площадь, если она известна, например «1 200 м²». Или отправьте «-»."
+        )
+
+    @router.message(AddPlot.area)
+    async def add_area(message: Message, state: FSMContext) -> None:
+        await state.update_data(area=None if message.text.strip() == "-" else message.text.strip())
+        await state.set_state(AddPlot.land_use)
+        await message.answer("Укажите ВРИ, если знаете, например «ИЖС». Или отправьте «-».")
+
+    @router.message(AddPlot.land_use)
+    async def add_land_use(message: Message, state: FSMContext) -> None:
+        await state.update_data(
+            land_use=None if message.text.strip() == "-" else message.text.strip()
+        )
         await state.set_state(AddPlot.submitted)
         await message.answer("Дата подачи заявления в формате ГГГГ-ММ-ДД.")
 
@@ -145,14 +185,6 @@ def build_router(factory: async_sessionmaker[AsyncSession]) -> Router:
     async def add_authority(message: Message, state: FSMContext) -> None:
         await state.update_data(
             authority=None if message.text.strip() == "-" else message.text.strip()
-        )
-        await state.set_state(AddPlot.address)
-        await message.answer("Укажите адрес или ориентир. Если не знаете, отправьте «-».")
-
-    @router.message(AddPlot.address)
-    async def add_address(message: Message, state: FSMContext) -> None:
-        await state.update_data(
-            address=None if message.text.strip() == "-" else message.text.strip()
         )
         await state.set_state(AddPlot.comment)
         await message.answer(

@@ -14,6 +14,25 @@ def menu() -> InlineKeyboardMarkup:
     )
 
 
+def plot_scenario() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Я подал заявление, номера ещё нет",
+                    callback_data="plot:add:no_cad",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="У меня есть кадастровый номер",
+                    callback_data="plot:add:with_cad",
+                )
+            ],
+        ]
+    )
+
+
 def plot_actions(plot_id: int, tracking_enabled: bool) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
