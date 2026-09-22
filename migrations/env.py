@@ -1,4 +1,5 @@
 from logging.config import fileConfig
+from pathlib import Path
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
@@ -7,6 +8,7 @@ from my_land_bot.config import Settings
 from my_land_bot.models import Base
 
 config = context.config
+Path("data").mkdir(exist_ok=True)
 config.set_main_option("sqlalchemy.url", Settings().database_url.replace("+aiosqlite", ""))
 if config.config_file_name:
     fileConfig(config.config_file_name)
