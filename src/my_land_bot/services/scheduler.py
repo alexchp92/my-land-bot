@@ -8,17 +8,28 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
-from my_land_bot.models import LandPlot, SentReminder, User
+from my_land_bot.models import LandPlot, SentReminder
 from my_land_bot.services.reminders import ReminderPlan, plans_for_auction, plans_for_notice
 
 logger = logging.getLogger(__name__)
 
 
 def source_line(url: str | None) -> str:
-    return f"\nИсточник: {url}" if url else "\nИсточник не добавлен — проверьте сайт администрации или ГИС Торги."
+    return (
+        f"\nИсточник: {url}"
+        if url
+        else "\nИсточник не добавлен — проверьте сайт администрации или ГИС Торги."
+    )
 
 
-async def send_once(session: AsyncSession, bot: Bot, plot: LandPlot, telegram_id: int, plan: ReminderPlan, source_url: str | None) -> None:
+async def send_once(
+    session: AsyncSession,
+    bot: Bot,
+    plot: LandPlot,
+    telegram_id: int,
+    plan: ReminderPlan,
+    source_url: str | None,
+) -> None:
     reminder = SentReminder(plot_id=plot.id, kind=plan.kind, due_date=plan.due_date)
     session.add(reminder)
     try:
@@ -32,17 +43,36 @@ async def send_once(session: AsyncSession, bot: Bot, plot: LandPlot, telegram_id
     await session.commit()
 
 
-async def run_reminders_once(factory: async_sessionmaker[AsyncSession], bot: Bot, today: date | None = None) -> None:
+async def run_reminders_once(
+    factory: async_sessionmaker[AsyncSession], bot: Bot, today: date | None = None
+) -> None:
     check_date = today or date.today()
     async with factory() as session:
-        statement = select(LandPlot).join(LandPlot.user).options(selectinload(LandPlot.notice), selectinload(LandPlot.auction), selectinload(LandPlot.user)).where(LandPlot.tracking_enabled.is_(True))
+        statement = (
+            select(LandPlot)
+            .join(LandPlot.user)
+            .options(
+                selectinload(LandPlot.notice),
+                selectinload(LandPlot.auction),
+                selectinload(LandPlot.user),
+            )
+            .where(LandPlot.tracking_enabled.is_(True))
+        )
         plots = list(await session.scalars(statement))
         for plot in plots:
             plans: list[tuple[ReminderPlan, str | None]] = []
             if plot.notice:
-                plans.extend((plan, plot.notice.source_url) for plan in plans_for_notice(plot.notice.deadline, check_date))
+                plans.extend(
+                    (plan, plot.notice.source_url)
+                    for plan in plans_for_notice(plot.notice.deadline, check_date)
+                )
             if plot.auction:
-                plans.extend((plan, plot.auction.source_url) for plan in plans_for_auction(plot.auction.application_deadline, plot.auction.auction_date, check_date))
+                plans.extend(
+                    (plan, plot.auction.source_url)
+                    for plan in plans_for_auction(
+                        plot.auction.application_deadline, plot.auction.auction_date, check_date
+                    )
+                )
             for plan, source in plans:
                 try:
                     await send_once(session, bot, plot, plot.user.telegram_id, plan, source)

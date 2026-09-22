@@ -14,7 +14,9 @@ from my_land_bot.services.scheduler import reminder_loop
 async def main() -> None:
     settings = Settings()
     Path("data").mkdir(exist_ok=True)
-    logging.basicConfig(level=settings.log_level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    logging.basicConfig(
+        level=settings.log_level, format="%(asctime)s %(levelname)s %(name)s %(message)s"
+    )
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode="HTML"))
     dispatcher = Dispatcher()
     factory = session_factory(settings.database_url)

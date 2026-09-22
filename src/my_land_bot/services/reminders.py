@@ -24,13 +24,26 @@ def plans_for_notice(deadline: date, today: date) -> list[ReminderPlan]:
     return [ReminderPlan(kind, deadline, messages[offset])]
 
 
-def plans_for_auction(application_deadline: date | None, auction_date: date | None, today: date) -> list[ReminderPlan]:
+def plans_for_auction(
+    application_deadline: date | None, auction_date: date | None, today: date
+) -> list[ReminderPlan]:
     plans: list[ReminderPlan] = []
     if application_deadline:
         offset = (application_deadline - today).days
-        texts = {7: "До окончания подачи заявки на аукцион осталось 7 дней.", 3: "До окончания подачи заявки на аукцион осталось 3 дня.", 1: "Завтра заканчивается подача заявки на аукцион.", 0: "Сегодня заканчивается подача заявки на аукцион."}
+        texts = {
+            7: "До окончания подачи заявки на аукцион осталось 7 дней.",
+            3: "До окончания подачи заявки на аукцион осталось 3 дня.",
+            1: "Завтра заканчивается подача заявки на аукцион.",
+            0: "Сегодня заканчивается подача заявки на аукцион.",
+        }
         if offset in texts:
-            plans.append(ReminderPlan(f"auction_application_{offset}d", application_deadline, texts[offset]))
+            plans.append(
+                ReminderPlan(f"auction_application_{offset}d", application_deadline, texts[offset])
+            )
     if auction_date and auction_date - timedelta(days=1) == today:
-        plans.append(ReminderPlan("auction_tomorrow", auction_date, "Завтра состоится аукцион по вашему участку."))
+        plans.append(
+            ReminderPlan(
+                "auction_tomorrow", auction_date, "Завтра состоится аукцион по вашему участку."
+            )
+        )
     return plans

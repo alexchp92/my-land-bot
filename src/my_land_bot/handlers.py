@@ -47,7 +47,12 @@ async def user_for(session: AsyncSession, telegram_id: int) -> User:
 
 
 async def plot_for(session: AsyncSession, plot_id: int, telegram_id: int) -> LandPlot | None:
-    query = select(LandPlot).join(LandPlot.user).options(selectinload(LandPlot.notice), selectinload(LandPlot.auction)).where(LandPlot.id == plot_id, User.telegram_id == telegram_id)
+    query = (
+        select(LandPlot)
+        .join(LandPlot.user)
+        .options(selectinload(LandPlot.notice), selectinload(LandPlot.auction))
+        .where(LandPlot.id == plot_id, User.telegram_id == telegram_id)
+    )
     return await session.scalar(query)
 
 
@@ -63,7 +68,12 @@ def plot_label(plot: LandPlot) -> str:
 
 
 def status_text(status: PlotStatus) -> str:
-    return {PlotStatus.WAITING_NOTICE: "Ждём извещение", PlotStatus.THIRD_PARTY_WINDOW: "Идёт срок для заявлений третьих лиц", PlotStatus.AUCTION_TRACKED: "Аукцион отслеживается", PlotStatus.COMPLETED: "Завершено"}[status]
+    return {
+        PlotStatus.WAITING_NOTICE: "Ждём извещение",
+        PlotStatus.THIRD_PARTY_WINDOW: "Идёт срок для заявлений третьих лиц",
+        PlotStatus.AUCTION_TRACKED: "Аукцион отслеживается",
+        PlotStatus.COMPLETED: "Завершено",
+    }[status]
 
 
 def build_router(factory: async_sessionmaker[AsyncSession]) -> Router:
@@ -74,11 +84,18 @@ def build_router(factory: async_sessionmaker[AsyncSession]) -> Router:
         async with factory() as session:
             await user_for(session, message.from_user.id)
             await session.commit()
-        await message.answer("Здравствуйте! Я помогу сохранить данные по вашему участку после подачи заявления, не пропустить срок по извещению и возможный аукцион." + DISCLAIMER, reply_markup=menu())
+        await message.answer(
+            "Здравствуйте! Я помогу сохранить данные по вашему участку после подачи заявления, не пропустить срок по извещению и возможный аукцион."
+            + DISCLAIMER,
+            reply_markup=menu(),
+        )
 
     @router.callback_query(F.data == "help:how")
     async def how(callback: CallbackQuery) -> None:
-        await callback.message.answer("1. Добавьте участок и дату подачи заявления.\n2. Когда найдёте извещение, сохраните ссылку и срок.\n3. Если появится аукцион — добавьте его данные.\n4. Бот напомнит о контрольных датах.\n\nЕсли других заявлений нет и отсутствуют основания для отказа, участок может быть предоставлен без торгов. Если появятся другие заинтересованные лица, участок могут выставить на аукцион." + DISCLAIMER)
+        await callback.message.answer(
+            "1. Добавьте участок и дату подачи заявления.\n2. Когда найдёте извещение, сохраните ссылку и срок.\n3. Если появится аукцион — добавьте его данные.\n4. Бот напомнит о контрольных датах.\n\nЕсли других заявлений нет и отсутствуют основания для отказа, участок может быть предоставлен без торгов. Если появятся другие заинтересованные лица, участок могут выставить на аукцион."
+            + DISCLAIMER
+        )
         await callback.answer()
 
     @router.callback_query(F.data == "help:disclaimer")
@@ -89,12 +106,16 @@ def build_router(factory: async_sessionmaker[AsyncSession]) -> Router:
     @router.callback_query(F.data == "plot:add")
     async def add_plot(callback: CallbackQuery, state: FSMContext) -> None:
         await state.set_state(AddPlot.cadastral)
-        await callback.message.answer("Введите кадастровый номер участка. Если его нет, отправьте «-» — точность отслеживания может быть ниже.")
+        await callback.message.answer(
+            "Введите кадастровый номер участка. Если его нет, отправьте «-» — точность отслеживания может быть ниже."
+        )
         await callback.answer()
 
     @router.message(AddPlot.cadastral)
     async def add_cadastral(message: Message, state: FSMContext) -> None:
-        await state.update_data(cadastral_number=None if message.text.strip() == "-" else message.text.strip())
+        await state.update_data(
+            cadastral_number=None if message.text.strip() == "-" else message.text.strip()
+        )
         await state.set_state(AddPlot.region)
         await message.answer("Укажите регион.")
 
@@ -122,38 +143,64 @@ def build_router(factory: async_sessionmaker[AsyncSession]) -> Router:
 
     @router.message(AddPlot.authority)
     async def add_authority(message: Message, state: FSMContext) -> None:
-        await state.update_data(authority=None if message.text.strip() == "-" else message.text.strip())
+        await state.update_data(
+            authority=None if message.text.strip() == "-" else message.text.strip()
+        )
         await state.set_state(AddPlot.address)
         await message.answer("Укажите адрес или ориентир. Если не знаете, отправьте «-».")
 
     @router.message(AddPlot.address)
     async def add_address(message: Message, state: FSMContext) -> None:
-        await state.update_data(address=None if message.text.strip() == "-" else message.text.strip())
+        await state.update_data(
+            address=None if message.text.strip() == "-" else message.text.strip()
+        )
         await state.set_state(AddPlot.comment)
-        await message.answer("Добавьте комментарий или отправьте «-». После этого участок будет сохранён.")
+        await message.answer(
+            "Добавьте комментарий или отправьте «-». После этого участок будет сохранён."
+        )
 
     @router.message(AddPlot.comment)
     async def add_comment(message: Message, state: FSMContext) -> None:
         data = await state.get_data()
         async with factory() as session:
             user = await user_for(session, message.from_user.id)
-            plot = LandPlot(user_id=user.id, comment=None if message.text.strip() == "-" else message.text.strip(), **data)
+            plot = LandPlot(
+                user_id=user.id,
+                comment=None if message.text.strip() == "-" else message.text.strip(),
+                **data,
+            )
             session.add(plot)
             await session.commit()
         await state.clear()
-        await message.answer(f"Участок «{plot_label(plot)}» сохранён. Статус: Ждём извещение.", reply_markup=plot_actions(plot.id, True))
+        await message.answer(
+            f"Участок «{plot_label(plot)}» сохранён. Статус: Ждём извещение.",
+            reply_markup=plot_actions(plot.id, True),
+        )
 
     @router.callback_query(F.data == "plot:list")
     async def list_plots(callback: CallbackQuery) -> None:
         async with factory() as session:
             user = await user_for(session, callback.from_user.id)
-            plots = list(await session.scalars(select(LandPlot).where(LandPlot.user_id == user.id).order_by(LandPlot.created_at.desc())))
+            plots = list(
+                await session.scalars(
+                    select(LandPlot)
+                    .where(LandPlot.user_id == user.id)
+                    .order_by(LandPlot.created_at.desc())
+                )
+            )
             await session.commit()
         if not plots:
-            await callback.message.answer("У вас пока нет участков. Добавьте первый — и я начну вести его карточку.", reply_markup=menu())
+            await callback.message.answer(
+                "У вас пока нет участков. Добавьте первый — и я начну вести его карточку.",
+                reply_markup=menu(),
+            )
         else:
             for plot in plots:
-                await callback.message.answer(f"📍 <b>{plot_label(plot)}</b>\n{plot.region} · {plot.municipality}\nСтатус: <b>{status_text(plot.status)}</b>", parse_mode="HTML", reply_markup=plot_actions(plot.id, plot.tracking_enabled))
+                await callback.message.answer(
+                    f"📍 <b>{plot_label(plot)}</b>\n{plot.region} · {plot.municipality}\nСтатус: <b>{status_text(plot.status)}</b>",
+                    parse_mode="HTML",
+                    reply_markup=plot_actions(plot.id, plot.tracking_enabled),
+                )
         await callback.answer()
 
     @router.callback_query(F.data.startswith("plot:toggle:"))
@@ -167,19 +214,25 @@ def build_router(factory: async_sessionmaker[AsyncSession]) -> Router:
             plot.tracking_enabled = not plot.tracking_enabled
             await session.commit()
             enabled = plot.tracking_enabled
-        await callback.message.answer("Контроль включён." if enabled else "Контроль отключён. Напоминания не будут приходить.")
+        await callback.message.answer(
+            "Контроль включён." if enabled else "Контроль отключён. Напоминания не будут приходить."
+        )
         await callback.answer()
 
     @router.callback_query(F.data.startswith("notice:add:"))
     async def add_notice(callback: CallbackQuery, state: FSMContext) -> None:
         await state.update_data(plot_id=int(callback.data.rsplit(":", 1)[1]))
         await state.set_state(AddNotice.source)
-        await callback.message.answer("Отправьте ссылку на официальное извещение или «-», если ссылки пока нет.")
+        await callback.message.answer(
+            "Отправьте ссылку на официальное извещение или «-», если ссылки пока нет."
+        )
         await callback.answer()
 
     @router.message(AddNotice.source)
     async def notice_source(message: Message, state: FSMContext) -> None:
-        await state.update_data(source_url=None if message.text.strip() == "-" else message.text.strip())
+        await state.update_data(
+            source_url=None if message.text.strip() == "-" else message.text.strip()
+        )
         await state.set_state(AddNotice.deadline)
         await message.answer("Укажите дату окончания приёма заявлений: ГГГГ-ММ-ДД.")
 
@@ -200,7 +253,10 @@ def build_router(factory: async_sessionmaker[AsyncSession]) -> Router:
             plot.status = PlotStatus.THIRD_PARTY_WINDOW
             await session.commit()
         await state.clear()
-        await message.answer("Извещение сохранено. Напоминания включены за 7, 3 и 1 день, в день окончания срока и через 2 дня после него." + DISCLAIMER)
+        await message.answer(
+            "Извещение сохранено. Напоминания включены за 7, 3 и 1 день, в день окончания срока и через 2 дня после него."
+            + DISCLAIMER
+        )
 
     @router.callback_query(F.data.startswith("auction:add:"))
     async def add_auction(callback: CallbackQuery, state: FSMContext) -> None:
@@ -211,7 +267,9 @@ def build_router(factory: async_sessionmaker[AsyncSession]) -> Router:
 
     @router.message(AddAuction.source)
     async def auction_source(message: Message, state: FSMContext) -> None:
-        await state.update_data(source_url=None if message.text.strip() == "-" else message.text.strip())
+        await state.update_data(
+            source_url=None if message.text.strip() == "-" else message.text.strip()
+        )
         await state.set_state(AddAuction.application_deadline)
         await message.answer("Укажите окончание подачи заявки (ГГГГ-ММ-ДД) или «-».")
 
@@ -237,7 +295,11 @@ def build_router(factory: async_sessionmaker[AsyncSession]) -> Router:
             if not plot:
                 await message.answer("Участок не найден.")
                 return
-            plot.auction = Auction(source_url=data["source_url"], application_deadline=data["application_deadline"], auction_date=value)
+            plot.auction = Auction(
+                source_url=data["source_url"],
+                application_deadline=data["application_deadline"],
+                auction_date=value,
+            )
             plot.status = PlotStatus.AUCTION_TRACKED
             await session.commit()
         await state.clear()

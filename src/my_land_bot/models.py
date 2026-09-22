@@ -9,7 +9,7 @@ class Base(DeclarativeBase):
     pass
 
 
-class PlotStatus(str, enum.Enum):
+class PlotStatus(enum.StrEnum):
     WAITING_NOTICE = "waiting_notice"
     THIRD_PARTY_WINDOW = "third_party_window"
     AUCTION_TRACKED = "auction_tracked"
